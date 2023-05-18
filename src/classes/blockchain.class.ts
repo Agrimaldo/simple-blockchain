@@ -1,6 +1,9 @@
-import { Block } from './block.class';
-import { Transaction } from './transaction.class';
+import { Injectable } from '@nestjs/common';
+import { Block } from 'src/schema/block.schema';
+import { Transaction } from '../schema/transaction.schema';
+import { StaticFunction } from '../util/static.function';
 
+@Injectable()
 export class BlockChain {
   readonly ProofOfWorkDifficulty: number;
   readonly MiningReward: number;
@@ -19,10 +22,10 @@ export class BlockChain {
   }
 
   mineBlock(minerAddress: string): void {
-    const minerRewardTransaction: Transaction = new Transaction(null, minerAddress, this.MiningReward);
+    const minerRewardTransaction: Transaction = new Transaction({ Sender: null, Receiver: minerAddress, Amount: 0, Fee: this.MiningReward });
     this.PendingTransactions.push(minerRewardTransaction);
-    const block: Block = new Block(new Date(), this.PendingTransactions);
-    block.mineBlock(this.ProofOfWorkDifficulty);
+    const block: Block = new Block({ TimeStamp: new Date(), Transactions: this.PendingTransactions });
+    StaticFunction.mineBlock(block, this.ProofOfWorkDifficulty);
     block.PreviousHash = this.Chain[this.Chain.length - 1].Hash;
     this.Chain.push(block);
     this.PendingTransactions = [];
@@ -33,7 +36,7 @@ export class BlockChain {
       const previvousBlock = this.Chain[i - 1];
       const currentBlock = this.Chain[i];
 
-      if (currentBlock.Hash != currentBlock.createHash())
+      if (currentBlock.Hash != StaticFunction.createHash(currentBlock))
         return false;
 
       if (currentBlock.PreviousHash != previvousBlock.Hash)
@@ -48,11 +51,29 @@ export class BlockChain {
     let balance: number = 0;
     this.Chain.forEach((block: Block) => {
       block.Transactions.forEach((transaction: Transaction) => {
-        if (transaction.From == address) {
+        if (transaction.Sender == address) {
           balance -= transaction.Amount;
         }
 
-        if (transaction.To == address) {
+        if (transaction.Receiver == address) {
+          balance += transaction.Amount;
+        }
+      });
+    });
+
+    return balance;
+  }
+
+  GetBalance(address: string): number {
+    let balance: number = 0;
+
+    this.Chain.forEach((block: Block) => {
+      block.Transactions.forEach((transaction: Transaction) => {
+        if (transaction.Sender == address) {
+          balance -= transaction.Amount;
+        }
+
+        if (transaction.Receiver == address) {
           balance += transaction.Amount;
         }
       });
@@ -62,7 +83,7 @@ export class BlockChain {
   }
 
   private createGenesisBlock(): Block {
-    const transactions: Transaction[] = [new Transaction('', '', 0)]
-    return new Block(new Date(), transactions, '0');
+    const transactions: Transaction[] = [new Transaction({ Sender: '', Receiver: '', Amount: 0, Fee: 0 })]
+    return new Block({ TimeStamp: new Date(), Transactions: transactions, PreviousHash: '0' });
   }
 }
